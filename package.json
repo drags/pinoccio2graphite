@@ -1,0 +1,12 @@
+{
+  "name": "pinoccio2graphite",
+  "version": "0.0.1",
+  "description": "Pipe pinoccio streaming API data to Graphite. Works at the API token level, forwarding all parsable messages for all troops and scouts accessible via the given API token.",
+  "keywords": ["pinoccio", "graphite"],
+  "homepage": "http://github.com/drags/pinoccio2graphite",
+  "dependencies": {
+    "async": ">0.0.0",
+    "graphite": ">0.0.0",
+    "pinoccio": ">0.0.0",
+  }
+}
