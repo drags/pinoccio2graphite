@@ -35,15 +35,15 @@ function get_scouts(callback) {
 	//console.log("Scouts")
 	troop_keys = Object.keys(troops)
 	//console.log("Got so many " + troop_keys.length)
-	async.each(troop_keys, function(troop_id, callback){
-		p_api.rest({url:'/v1/'+troop_id+'/scouts'}, function(err, scout_data) {
+	async.each(troop_keys, function(troop_id, cb){
+		p_api_client.rest({url:'/v1/'+troop_id+'/scouts'}, function(err, scout_data) {
 			for (var j=0; j < scout_data.length; j++) {
 				scout_id = scout_data[j]['id']
 				scout_name = sanitize_name(scout_data[j]['name'])
 				console.log(sprintf("Learned scout named %s in troop %s with id %d", scout_name, troop_name, scout_id));
 				troops[troop_id][scout_id] = scout_name
 			}
-			callback()
+			cb()
 		})},
 		//function() {console.log(troops)}
 		function() {}
