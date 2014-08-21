@@ -8,11 +8,38 @@
 var pinoccio = require('pinoccio'),
 	graphite = require('graphite'),
 	async = require('async'),
+	argparse = require('argparse'),
 	sprintf = require('util').format;
 
-var p_api = pinoccio('xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx')
-var graphite_client = graphite.createClient('plaintext://graphite.example.com:2003')
+var p_api_client, graphite_client;
 var troops = {}
+
+function handle_args(callback) {
+	parser = new argparse.ArgumentParser({
+		version:"0.0.1",
+		addHelp:true,
+		description:"Pinoccio to Graphite"
+	})
+	parser.addArgument(
+		[ '-t', '--token' ],
+		{
+			help: 'Pinoccio API token',
+			required: true
+		}
+	)
+	parser.addArgument(
+		[ '-g', '--graphite' ],
+		{
+			help: 'Address of Graphite host',
+			required: true
+		}
+	)
+	parsed_args = parser.parseArgs()
+	p_api_client = pinoccio(parsed_args.token)
+	graphite_client = graphite.createClient(parsed_args.graphite)
+	callback() // we're done here
+}
+
 
 function sanitize_name(name) {
 	return name.replace(/[^ A-Za-z0-9_-]/g, '').replace(/\s+/g, '_')
@@ -20,7 +47,7 @@ function sanitize_name(name) {
 
 function get_troops(callback) {
 	//console.log("Troops")
-	p_api.rest({url:'/v1/troops'}, function(err, troop_data) {
+	p_api_client.rest({url:'/v1/troops'}, function(err, troop_data) {
 		for (var i=0; i < troop_data.length; i++) {
 			troop_id = troop_data[i]['id'];
 			troop_name = sanitize_name(troop_data[i]['name'])
@@ -53,7 +80,7 @@ function get_scouts(callback) {
 }
 
 function get_events() {
-	syncer = p_api.sync()
+	syncer = p_api_client.sync()
 	syncer.on('data', function(data) {
 		handle_event(data)
 	});
@@ -112,15 +139,15 @@ function handle_event(msg) {
 		}
 	}
 	if (Object.keys(graphite_msg).length == 0) {
-		console.log("Empty metric msg")
+		console.log("Empty metric from msg:", msg_data)
 		return
 	}
 	console.log("Metric", graphite_msg)
 	graphite_client.write(graphite_msg, msg_time, function(err) {
-		if (err !== null) {
+		if (typeof err != "undefined") {
 			console.log("Error from graphite:", err)
 		}
 	})
 }
 
-async.series([get_troops, get_scouts], get_events)
+async.series([handle_args, get_troops, get_scouts], get_events)

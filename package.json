@@ -7,6 +7,6 @@
   "dependencies": {
     "async": ">0.0.0",
     "graphite": ">0.0.0",
-    "pinoccio": ">0.0.0",
+    "pinoccio": ">0.0.0"
   }
 }
