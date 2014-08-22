@@ -48,6 +48,10 @@ function sanitize_name(name) {
 function get_troops(callback) {
 	//console.log("Troops")
 	p_api_client.rest({url:'/v1/troops'}, function(err, troop_data) {
+		if (typeof err != "undefined") {
+			console.log("Error from pinoccio while getting troops:", err)
+			process.exit(1)
+		}
 		for (var i=0; i < troop_data.length; i++) {
 			troop_id = troop_data[i]['id'];
 			troop_name = sanitize_name(troop_data[i]['name'])
@@ -64,6 +68,10 @@ function get_scouts(callback) {
 	//console.log("Got so many " + troop_keys.length)
 	async.each(troop_keys, function(troop_id, cb){
 		p_api_client.rest({url:'/v1/'+troop_id+'/scouts'}, function(err, scout_data) {
+			if (typeof err != "undefined") {
+				console.log("Error from pinoccio while getting scouts:", err)
+				process.exit(1)
+			}
 			for (var j=0; j < scout_data.length; j++) {
 				scout_id = scout_data[j]['id']
 				scout_name = sanitize_name(scout_data[j]['name'])
