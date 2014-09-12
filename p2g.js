@@ -15,7 +15,7 @@ var p_api_client, graphite_client;
 var troops = {}
 
 function handle_args(callback) {
-	parser = new argparse.ArgumentParser({
+	var parser = new argparse.ArgumentParser({
 		version:"0.0.1",
 		addHelp:true,
 		description:"Pinoccio to Graphite"
@@ -34,7 +34,7 @@ function handle_args(callback) {
 			required: true
 		}
 	)
-	parsed_args = parser.parseArgs()
+	var parsed_args = parser.parseArgs()
 	p_api_client = pinoccio(parsed_args.token)
 	graphite_client = graphite.createClient(parsed_args.graphite)
 	callback() // we're done here
@@ -53,9 +53,11 @@ function get_troops(callback) {
 			process.exit(1)
 		}
 		for (var i=0; i < troop_data.length; i++) {
-			troop_id = troop_data[i]['id'];
-			troop_name = sanitize_name(troop_data[i]['name'])
-			troops[troop_id] = {name:troop_name}
+			var troop_id = troop_data[i]['id'];
+			var troop_name = sanitize_name(troop_data[i]['name'])
+			var current_troop_data = troops[troop_id] || {}
+			current_troop_data['name'] = troop_name
+			troops[troop_id] = current_troop_data
 			console.log(sprintf("Learned troop named %s with id %d", troop_name, troop_id));
 		}
 		callback()
@@ -64,7 +66,7 @@ function get_troops(callback) {
 
 function get_scouts(callback) {
 	//console.log("Scouts")
-	troop_keys = Object.keys(troops)
+	var troop_keys = Object.keys(troops)
 	//console.log("Got so many " + troop_keys.length)
 	async.each(troop_keys, function(troop_id, cb){
 		p_api_client.rest({url:'/v1/'+troop_id+'/scouts'}, function(err, scout_data) {
@@ -73,8 +75,8 @@ function get_scouts(callback) {
 				process.exit(1)
 			}
 			for (var j=0; j < scout_data.length; j++) {
-				scout_id = scout_data[j]['id']
-				scout_name = sanitize_name(scout_data[j]['name'])
+				var scout_id = scout_data[j]['id']
+				var scout_name = sanitize_name(scout_data[j]['name'])
 				console.log(sprintf("Learned scout named %s in troop %s with id %d", scout_name, troop_name, scout_id));
 				troops[troop_id][scout_id] = scout_name
 			}
@@ -88,7 +90,7 @@ function get_scouts(callback) {
 }
 
 function get_events() {
-	syncer = p_api_client.sync()
+	var syncer = p_api_client.sync()
 	syncer.on('data', function(data) {
 		handle_event(data)
 	});
@@ -111,22 +113,25 @@ function handle_event(msg) {
 	if (!('troop' in msg['data']) || !('value' in msg['data'])) {
 		return
 	}
-	msg_data = msg['data']
-	msg_time = msg_data['time']
-	msg_value = msg_data['value']
+	var msg_data = msg['data']
+	var msg_time = msg_data['time']
+	var msg_value = msg_data['value']
 
 	//console.log("Got data", msg_data)
 
-	troop_name = troops[msg_data['troop']]['name']
-	scout_name = troops[msg_data['troop']][msg_data['scout']]
-	g_msg_prefix = ['pinoccio', troop_name, scout_name, msg_data['type']].join('.')
+	var troop_id = msg_data['troop']
+	var scout_id = msg_data['scout']
+	var troop_name = troops[troop_id]['name']
+	var scout_name = troops[troop_id][scout_id]
 
+	// Build prefix and metric builder
+	var g_msg_prefix = ['pinoccio', troop_name, scout_name, msg_data['type']].join('.')
+	var graphite_msg = {}
 	function add_metric(name, value) {
-		metric_key = [g_msg_prefix, name].join('.')
+		var metric_key = [g_msg_prefix, name].join('.')
 		graphite_msg[metric_key] = value
 	}
 
-	graphite_msg = {}
 	for (var prop in msg_value) {
 		// skip metadata
 		if (prop == "_t" || prop == "type") {
