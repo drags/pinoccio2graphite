@@ -75,6 +75,7 @@ function get_scouts(callback) {
 				process.exit(1)
 			}
 			for (var j=0; j < scout_data.length; j++) {
+				var troop_name = troops[troop_id]
 				var scout_id = scout_data[j]['id']
 				var scout_name = sanitize_name(scout_data[j]['name'])
 				console.log(sprintf("Learned scout named %s in troop %s with id %d", scout_name, troop_name, scout_id));
@@ -123,6 +124,24 @@ function handle_event(msg) {
 	var scout_id = msg_data['scout']
 	var troop_name = troops[troop_id]['name']
 	var scout_name = troops[troop_id][scout_id]
+
+	if (!('type' in msg_data)) {
+		console.log("Got message without type: ", msg_data)
+		return
+	}
+
+	if (msg_data['type'] == 'delete-scout') {
+		console.log(sprintf("Forgetting known scout %s in troop %s", scout_name, troop_name))
+		delete troops[troop_id][scout_id]
+		return
+	}
+
+	// If event type is "available", check if troop and scout are known, else repoll
+	if (msg_data['type'] == 'available' && !(troop_id in troops || scout_id in troops[troop_id])) {
+		get_troops()
+		get_scouts()
+		return
+	}
 
 	// Build prefix and metric builder
 	var g_msg_prefix = ['pinoccio', troop_name, scout_name, msg_data['type']].join('.')
