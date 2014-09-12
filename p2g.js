@@ -5,6 +5,8 @@
 // handle troop/scout add messages in stream (add to troops map)
 // offline/online events entered with value of one, to be used with drawAsInfinite
 //   other events to catch?
+//   delete, delete-scout, troop/scout addition/rename
+// replace console.log with proper log library, add log level to argparse opts
 var pinoccio = require('pinoccio'),
 	graphite = require('graphite'),
 	async = require('async'),
@@ -174,7 +176,7 @@ function handle_event(msg) {
 		console.log("Empty metric from msg:", msg_data)
 		return
 	}
-	console.log("Metric", graphite_msg)
+	//console.log("Metric", graphite_msg)
 	graphite_client.write(graphite_msg, msg_time, function(err) {
 		if (typeof err != "undefined") {
 			console.log("Error from graphite:", err)
