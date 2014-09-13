@@ -62,7 +62,9 @@ function get_troops(callback) {
 			troops[troop.id] = current_troop_data;
 			console.log(sprintf("Learned troop named %s with id %d", troop_name, troop.id));
 		});
-		callback();
+		if (callback) {
+			callback();
+		}
 	});
 }
 
@@ -89,7 +91,9 @@ function get_scouts(callback) {
 		function () {}
 	  );
 
-	callback();
+	if (callback) {
+		callback();
+	}
 }
 
 function handle_event(msg) {
@@ -120,7 +124,7 @@ function handle_event(msg) {
 	}
 
 	// If event type is "available", check if troop and scout are known, else repoll
-	var knownScout = troops.hasOwnProperty(troop_id) && troops.troop_id.hasOwnProperty(scout_id);
+	var knownScout = troops.hasOwnProperty(troop_id) && troops[troop_id].hasOwnProperty(scout_id);
 	if (msg_data.type === 'available' && !knownScout) {
 		get_troops();
 		get_scouts();
