@@ -50,12 +50,12 @@ function sanitize_name(name) {
 
 function get_troops(callback) {
 	//console.log("Troops")
-	p_api_client.rest({url: '/v1/troops'}, function (err, troop_data) {
+	p_api_client.rest({url: '/v1/troops'}, function onTroops(err, troop_data) {
 		if (typeof err !== "undefined") {
 			console.log("Error from pinoccio while getting troops:", err);
 			process.exit(1);
 		}
-		troop_data.forEach(function (troop, troop_ind, arr) {
+		troop_data.forEach(function eachTroop(troop, troop_ind, arr) {
 			var troop_name = sanitize_name(troop.name);
 			var current_troop_data = troops[troop.id] || {};
 			current_troop_data.name = troop_name;
@@ -72,16 +72,17 @@ function get_scouts(callback) {
 	//console.log("Scouts")
 	var troop_keys = Object.keys(troops);
 	//console.log("Got so many " + troop_keys.length)
-	async.each(troop_keys, function (troop_id, cb) {
-		p_api_client.rest({url: '/v1/' + troop_id + '/scouts'}, function (err, scout_data) {
+	async.each(troop_keys, function eachParent(troop_id, cb) {
+		p_api_client.rest({url: '/v1/' + troop_id + '/scouts'}, function onScouts(err, scout_data) {
 			if (typeof err !== "undefined") {
 				console.log("Error from pinoccio while getting scouts:", err);
 				process.exit(1);
 			}
-			scout_data.forEach(function (scout, scout_ind, arr) {
-				var troop_name = troops.troop_id.name;
+			scout_data.forEach(function eachScout(scout, scout_ind, arr) {
+				var troop_name = troops[troop_id].name;
 				var scout_name = sanitize_name(scout.name);
-				console.log(sprintf("Learned scout named %s in troop %s with id %d", scout_name, troop_name, scout.id));
+				console.log(sprintf("Learned scout named %s in troop %s with id %d",
+						scout_name, troop_name, scout.id));
 				troops[troop_id][scout.id] = scout_name;
 			});
 			cb();
@@ -134,37 +135,43 @@ function handle_event(msg) {
 	// Build prefix and metric builder
 	var g_msg_prefix = ['pinoccio', troop_name, scout_name, msg_data.type].join('.');
 	var graphite_msg = {};
+	var prop_name; // Fucking Crockford
 	function add_metric(name, value) {
 		var metric_key = [g_msg_prefix, name].join('.');
 		graphite_msg[metric_key] = value;
 	}
 
-	var prop; // Fucking Crockford
-	for (prop in msg_value) {
-		// skip metadata
-		if (prop === "_t" || prop === "type") {
-			continue;
-		}
-		// if not a number
-		if (!isFinite(msg_value[prop])) {
-			// but an array, expand keys
-			if (msg_value[prop] instanceof Array) {
-				msg_value[prop].forEach(function (prop_val, prop_ind, arr) {
-					add_metric([prop, prop_ind].join('_'), prop_val);
-				});
-			} else {
+	function addArrayMetric(prop_val, prop_ind, arr) {
+		add_metric([prop_name, prop_ind].join('_'), prop_val);
+	}
+
+	for (prop_name in msg_value) {
+		if (msg_value.hasOwnProperty(prop_name)) {
+			// skip metadata
+			if (prop_name === "_t" || prop_name === "type") {
 				continue;
 			}
-		} else { // 1-dimensional value
-			add_metric(prop, msg_data.value[prop]);
+			// if not a number
+			if (!isFinite(msg_value[prop_name])) {
+				// but an array, expand keys
+				if (msg_value[prop_name] instanceof Array) {
+					msg_value[prop_name].forEach(addArrayMetric);
+				} else {
+					continue;
+				}
+			} else { // 1-dimensional value
+				add_metric(prop_name, msg_data.value[prop_name]);
+			}
 		}
 	}
+
 	if (Object.keys(graphite_msg).length === 0) {
 		console.log("Empty metric from msg:", msg_data);
 		return;
 	}
+
 	//console.log("Metric", graphite_msg)
-	graphite_client.write(graphite_msg, msg_time, function (err) {
+	graphite_client.write(graphite_msg, msg_time, function onSend(err) {
 		if (typeof err !== "undefined") {
 			console.log("Error from graphite:", err);
 		}
@@ -173,18 +180,18 @@ function handle_event(msg) {
 
 function get_events() {
 	var syncer = p_api_client.sync();
-	syncer.on('data', function (data) {
+	syncer.on('data', function onData(data) {
 		handle_event(data);
 	});
-	syncer.on('error', function (err) {
+	syncer.on('error', function onErr(err) {
 		console.log('sync error: ', err);
-		delete syncer;
+		syncer = null;
 		//setTimeout(get_events, 60000);
 		setTimeout(get_events, 6000);
 	});
-	syncer.on('end', function () {
+	syncer.on('end', function onEnd() {
 		console.log("shouldn't end but depending on arguments it may");
-		delete syncer;
+		syncer = null;
 		//setTimeout(get_events, 60000);
 		setTimeout(get_events, 6000);
 	});
