@@ -92,25 +92,6 @@ function get_scouts(callback) {
 	callback();
 }
 
-function get_events() {
-	var syncer = p_api_client.sync();
-	syncer.on('data', function (data) {
-		handle_event(data);
-	});
-	syncer.on('error', function (err) {
-		console.log('sync error: ', err);
-		delete syncer;
-		//setTimeout(get_events, 60000);
-		setTimeout(get_events, 6000);
-	});
-	syncer.on('end', function () {
-		console.log("shouldn't end but depending on arguments it may");
-		delete syncer;
-		//setTimeout(get_events, 60000);
-		setTimeout(get_events, 6000);
-	});
-}
-
 function handle_event(msg) {
 	var validMessage = msg.data.hasOwnProperty('troop') && msg.data.hasOwnProperty('value');
 	if (!validMessage) {
@@ -183,6 +164,25 @@ function handle_event(msg) {
 		if (typeof err !== "undefined") {
 			console.log("Error from graphite:", err);
 		}
+	});
+}
+
+function get_events() {
+	var syncer = p_api_client.sync();
+	syncer.on('data', function (data) {
+		handle_event(data);
+	});
+	syncer.on('error', function (err) {
+		console.log('sync error: ', err);
+		delete syncer;
+		//setTimeout(get_events, 60000);
+		setTimeout(get_events, 6000);
+	});
+	syncer.on('end', function () {
+		console.log("shouldn't end but depending on arguments it may");
+		delete syncer;
+		//setTimeout(get_events, 60000);
+		setTimeout(get_events, 6000);
 	});
 }
 
