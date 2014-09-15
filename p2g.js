@@ -1,3 +1,4 @@
+// TODO
 // Doc note on default metric resolution + report windows (and xFileFactor aggregation warning)
 // x- expand pin.report into metrics per pin
 //   ?- ignore disabled pins (mode -1)
@@ -13,7 +14,7 @@ var async = require('async');
 var argparse = require('argparse');
 var sprintf = require('util').format;
 
-var p_api_client, graphite_client;
+var p_api_client, graphite_client, metric_prefix;
 var troops = {};
 
 function handle_args(callback) {
@@ -37,9 +38,17 @@ function handle_args(callback) {
 			required: true
 		}
 	);
+	parser.addArgument(
+		[ '-p', '--prefix' ],
+		{
+			help: 'Metric prefix: PREFIX.<troop>.<scout>.<metric>',
+			defaultValue: 'pinoccio'
+		}
+	);
 	parsed_args = parser.parseArgs();
 	p_api_client = pinoccio(parsed_args.token);
 	graphite_client = graphite.createClient(parsed_args.graphite);
+	metric_prefix = parsed_args.prefix;
 	callback(); // we're done here
 }
 
@@ -133,7 +142,7 @@ function handle_event(msg) {
 	}
 
 	// Build prefix and metric builder
-	var g_msg_prefix = ['pinoccio', troop_name, scout_name, msg_data.type].join('.');
+	var g_msg_prefix = [metric_prefix, troop_name, scout_name, msg_data.type].join('.');
 	var graphite_msg = {};
 	var prop_name; // Fucking Crockford
 	function add_metric(name, value) {
