@@ -1,13 +1,14 @@
 // TODO
-// Doc note on default metric resolution + report windows (and xFileFactor aggregation warning)
+// x- Doc note on default metric resolution + report windows (and xFileFactor aggregation warning)
 // x- expand pin.report into metrics per pin
 //   ?- ignore disabled pins (mode -1)
-// accept prefix (<pre[.]fix>.<troop_name>.<scout_name>)
+// x- accept prefix (<pre[.]fix>.<troop_name>.<scout_name>)
 // handle troop/scout add messages in stream (add to troops map)
 // offline/online events entered with value of one, to be used with drawAsInfinite
 //   other events to catch?
 //   delete, delete-scout, troop/scout addition/rename
 // replace console.log with proper log library, add log level to argparse opts
+// filter out more event types: scout, available, backpacks, wifi
 var pinoccio = require('pinoccio');
 var graphite = require('graphite');
 var async = require('async');
@@ -106,43 +107,45 @@ function get_scouts(callback) {
 	}
 }
 
-function handle_event(msg) {
-	var validMessage = msg.data.hasOwnProperty('troop') && msg.data.hasOwnProperty('value');
-	if (!validMessage) {
-		return;
-	}
-	var msg_data = msg.data;
-	var msg_time = msg_data.time;
-	var msg_value = msg_data.value;
+function handleAvailable(msg) {
+    var knownTroop = troops.hasOwnProperty(msg.data.troop)
+    if (!knownTroop) {
+        get_troops();
+    }
 
-	//console.log("Got data", msg_data)
+    var knownScout = knownTroop && troops[msg.data.troop].hasOwnProperty(msg.data.scout);
+    if (!knownScout) {
+        get_scouts();
+    }
+    return;
+}
 
-	var troop_id = msg_data.troop;
-	var scout_id = msg_data.scout;
+function deleteScout(msg) {
+	var troop_id = msg.data.troop;
+	var scout_id = msg.data.scout;
 	var troop_name = troops[troop_id].name;
-	var scout_name = troops[troop_id][scout_id];
+    var scout_name = troops[troop_id][scout_id];
+    console.log(sprintf("Forgetting known scout %s in troop %s", scout_name, troop_name));
+    delete troops.troop_id.scout_id;
+    return;
+}
 
-	if (!(msg_data.hasOwnProperty('type'))) {
-		console.log("Got message without type: ", msg_data);
-		return;
-	}
+function deleteTroop(msg) {
+	var troop_id = msg.data.troop;
+	var troop_name = troops[troop_id].name;
+    console.log(sprintf("Forgetting known troop %s", troop_name));
+    delete troops.troop_id;
+    return;
+}
 
-	if (msg_data.type === 'delete-scout') {
-		console.log(sprintf("Forgetting known scout %s in troop %s", scout_name, troop_name));
-		delete troops[troop_id][scout_id];
-		return;
-	}
-
-	// If event type is "available", check if troop and scout are known, else repoll
-	var knownScout = troops.hasOwnProperty(troop_id) && troops[troop_id].hasOwnProperty(scout_id);
-	if (msg_data.type === 'available' && !knownScout) {
-		get_troops();
-		get_scouts();
-		return;
-	}
+function handleMetricMessage(msg) {
+	var troop_id = msg.data.troop;
+	var scout_id = msg.data.scout;
+	var troop_name = troops[troop_id].name;
+    var scout_name = troops[troop_id][scout_id];
 
 	// Build prefix and metric builder
-	var g_msg_prefix = [metric_prefix, troop_name, scout_name, msg_data.type].join('.');
+	var g_msg_prefix = [metric_prefix, troop_name, scout_name, msg.data.type].join('.');
 	var graphite_msg = {};
 	var prop_name; // Fucking Crockford
 	function add_metric(name, value) {
@@ -154,43 +157,84 @@ function handle_event(msg) {
 		add_metric([prop_name, prop_ind].join('_'), prop_val);
 	}
 
-	for (prop_name in msg_value) {
-		if (msg_value.hasOwnProperty(prop_name)) {
+	for (prop_name in msg.data.value) {
+		if (msg.data.value.hasOwnProperty(prop_name)) {
 			// skip metadata
 			if (prop_name === "_t" || prop_name === "type") {
 				continue;
 			}
 			// if not a number
-			if (!isFinite(msg_value[prop_name])) {
+			if (!isFinite(msg.data.value[prop_name])) {
 				// but an array, expand keys
-				if (msg_value[prop_name] instanceof Array) {
-					msg_value[prop_name].forEach(addArrayMetric);
+				if (msg.data.value[prop_name] instanceof Array) {
+					msg.data.value[prop_name].forEach(addArrayMetric);
 				} else {
 					continue;
 				}
 			} else { // 1-dimensional value
-				add_metric(prop_name, msg_data.value[prop_name]);
+				add_metric(prop_name, msg.data.value[prop_name]);
 			}
 		}
 	}
 
 	if (Object.keys(graphite_msg).length === 0) {
-		console.log("Empty metric from msg:", msg_data);
+		console.log("Empty metric from msg:", msg.data);
 		return;
 	}
 
 	//console.log("Metric", graphite_msg)
-	graphite_client.write(graphite_msg, msg_time, function onSend(err) {
+	graphite_client.write(graphite_msg, msg.data.time, function onSend(err) {
 		if (typeof err !== "undefined") {
 			console.log("Error from graphite:", err);
 		}
 	});
 }
 
+function troopName(msg) {
+    var troop_name = sanitize_name(msg.data.value);
+    var current_troop_data = troops[msg.data.troop] || {};
+    current_troop_data.name = troop_name;
+    troops[msg.data.troop] = current_troop_data;
+    console.log(sprintf("Learned troop named %s with id %d", troop_name, msg.data.troop));
+    return;
+}
+
+// assuming we'll never get a scout-name msg without knowing the troop
+function scoutName(msg) {
+    var troop_name = troops[msg.data.troop].name;
+    var scout_name = sanitize_name(msg.data.value);
+    console.log(sprintf("Learned scout named %s in troop %s with id %d",
+            scout_name, troop_name, msg.data.scout));
+    troops[msg.data.troop][msg.data.scout] = scout_name;
+    return;
+}
+
+
+var typeHandlers = {
+    'available': handleAvailable, 'delete': deleteTroop,
+    'delete-scout': deleteScout, 'name': troopName, 'scout-name': scoutName
+}
+
+function handleEvent(msg) {
+	var validMessage = msg.data.hasOwnProperty('troop') && msg.data.hasOwnProperty('value');
+	if (!validMessage) {
+		return;
+	}
+
+	if (!(msg.data.hasOwnProperty('type'))) {
+		console.log("Got message without type: ", msg.data);
+		return;
+	}
+
+    var msgHandler = typeHandlers[msg.data.type] || handleMetricMessage
+
+    return msgHandler(msg);
+}
+
 function get_events() {
 	var syncer = p_api_client.sync();
 	syncer.on('data', function onData(data) {
-		handle_event(data);
+		handleEvent(data);
 	});
 	syncer.on('error', function onErr(err) {
 		console.log('sync error: ', err);
@@ -199,7 +243,7 @@ function get_events() {
 		setTimeout(get_events, 6000);
 	});
 	syncer.on('end', function onEnd() {
-		console.log("shouldn't end but depending on arguments it may");
+		console.log('sync "end" error');
 		syncer = null;
 		//setTimeout(get_events, 60000);
 		setTimeout(get_events, 6000);
