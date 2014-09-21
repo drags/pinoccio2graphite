@@ -27,7 +27,7 @@ Refer to the Pinocc.io docs for [generating tokens](https://docs.pinocc.io/api.h
 Graphite uses the [Whisper database](https://graphite.readthedocs.org/en/0.9.10/whisper.html) file format for storing metrics. Whisper is a fixed size, multiple precision archive. These levels of precision (aggregations over time periods) are configured by the user in storage-schemas.conf and storage-aggregation.conf. Misconfigured schemas and aggregations can lead to inaccurate, useless, or wholly "missing" data. The `default` (unconfigured) storage schema is to store 1-day's worth of 1-minute aggregations (per metric). This means that:
 
  - If exactly 1 data point comes in every 60 seconds, the data stored by Graphite will be accurate.
- - If less than 1 data point comes in every 60 seconds then there will be gaps in the data. (The keepLastValue function can be used to fill in the gaps when graphed)
+ - If less than 1 data point comes in every 60 seconds then there will be gaps in the data. (The [keepLastValue](http://graphite.readthedocs.org/en/1.0/functions.html#graphite.render.functions.keepLastValue) function can be used to fill in the gaps when graphed)
  - If more than 1 data point comes in every 60 seconds then the value with the **latest** timestamp that fits in the interval will be used.
 
 If the data you're trying to capture is dynamic (does not occur/arrive at a fixed interval) you will need to look into running the carbon-aggregator daemon in front of the carbbon-cache daemon. This is because rollup aggregation only happens at levels above the lowest resolution schema (rollup aggregation is a feature of the Whisper database file format, and not handled by carbon-cache itself).
