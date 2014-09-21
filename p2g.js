@@ -202,7 +202,7 @@ function handleMetricMessage(msg) {
 	}
 
 	//console.log("Metric", graphite_msg)
-	graphite_client.write(graphite_msg, function onSend(err) {
+	graphite_client.write(graphite_msg, msg.data.time, function onSend(err) {
 		if (typeof err !== "undefined") {
 			console.log("Error from graphite:", err);
 		}
