@@ -130,7 +130,7 @@ function deleteTroop(msg) {
 	var troop_id = msg.data.troop;
 	var troop_name = troops[troop_id].name;
     console.log(sprintf("Forgetting known troop %s", troop_name));
-    delete troops.troop_id;
+    delete troops[troop_id];
     return;
 }
 
@@ -154,10 +154,14 @@ function scoutName(msg) {
 }
 
 function handleMetricMessage(msg) {
-	var troop_id = msg.data.troop;
-	var scout_id = msg.data.scout;
-	var troop_name = troops[troop_id].name;
-    var scout_name = troops[troop_id][scout_id];
+    var knownTroop = troops.hasOwnProperty(msg.data.troop)
+    var knownScout = knownTroop && troops[msg.data.troop].hasOwnProperty(msg.data.scout);
+    if (!knownScout) {
+        console.log("Cannot handle message for unknown scout. Troop:", msg.data.troop, "Scout:", msg.data.scout, "Msg:",msg);
+        return;
+    }
+    var troop_name = troops[msg.data.troop].name;
+    var scout_name = troops[msg.data.troop][msg.data.scout];
 
 	// Build prefix and metric builder
 	var g_msg_prefix = [metric_prefix, troop_name, scout_name, msg.data.type].join('.');
@@ -205,9 +209,15 @@ function handleMetricMessage(msg) {
 	});
 }
 
+function noOp() {
+    return;
+}
+
 var typeHandlers = {
     'available': handleAvailable, 'delete': deleteTroop,
-    'delete-scout': deleteScout, 'name': troopName, 'scout-name': scoutName
+    'delete-scout': deleteScout, 'name': troopName, 'scout-name': scoutName,
+    'scout-created': noOp, 'troop-created': noOp
+    //'connection': scoutConnected
 }
 
 function handleEvent(msg) {
