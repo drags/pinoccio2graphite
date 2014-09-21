@@ -59,7 +59,6 @@ function sanitize_name(name) {
 }
 
 function get_troops(callback) {
-	//console.log("Troops")
 	p_api_client.rest({url: '/v1/troops'}, function onTroops(err, troop_data) {
 		if (typeof err !== "undefined") {
 			console.log("Error from pinoccio while getting troops:", err);
@@ -79,9 +78,7 @@ function get_troops(callback) {
 }
 
 function get_scouts(callback) {
-	//console.log("Scouts")
 	var troop_keys = Object.keys(troops);
-	//console.log("Got so many " + troop_keys.length)
 	async.each(troop_keys, function eachParent(troop_id, cb) {
 		p_api_client.rest({url: '/v1/' + troop_id + '/scouts'}, function onScouts(err, scout_data) {
 			if (typeof err !== "undefined") {
@@ -98,7 +95,6 @@ function get_scouts(callback) {
 			cb();
 		});
 	},
-		//function () {console.log(troops)}
 		function () {}
 	  );
 
@@ -126,7 +122,7 @@ function deleteScout(msg) {
 	var troop_name = troops[troop_id].name;
     var scout_name = troops[troop_id][scout_id];
     console.log(sprintf("Forgetting known scout %s in troop %s", scout_name, troop_name));
-    delete troops.troop_id.scout_id;
+    delete troops[troop_id][scout_id];
     return;
 }
 
@@ -135,6 +131,25 @@ function deleteTroop(msg) {
 	var troop_name = troops[troop_id].name;
     console.log(sprintf("Forgetting known troop %s", troop_name));
     delete troops.troop_id;
+    return;
+}
+
+function troopName(msg) {
+    var troop_name = sanitize_name(msg.data.value);
+    var current_troop_data = troops[msg.data.troop] || {};
+    current_troop_data.name = troop_name;
+    troops[msg.data.troop] = current_troop_data;
+    console.log(sprintf("Learned troop named %s with id %d", troop_name, msg.data.troop));
+    return;
+}
+
+// assuming we'll never get a scout-name msg without knowing the troop
+function scoutName(msg) {
+    var troop_name = troops[msg.data.troop].name;
+    var scout_name = sanitize_name(msg.data.value);
+    console.log(sprintf("Learned scout named %s in troop %s with id %d",
+            scout_name, troop_name, msg.data.scout));
+    troops[msg.data.troop][msg.data.scout] = scout_name;
     return;
 }
 
@@ -183,32 +198,12 @@ function handleMetricMessage(msg) {
 	}
 
 	//console.log("Metric", graphite_msg)
-	graphite_client.write(graphite_msg, msg.data.time, function onSend(err) {
+	graphite_client.write(graphite_msg, function onSend(err) {
 		if (typeof err !== "undefined") {
 			console.log("Error from graphite:", err);
 		}
 	});
 }
-
-function troopName(msg) {
-    var troop_name = sanitize_name(msg.data.value);
-    var current_troop_data = troops[msg.data.troop] || {};
-    current_troop_data.name = troop_name;
-    troops[msg.data.troop] = current_troop_data;
-    console.log(sprintf("Learned troop named %s with id %d", troop_name, msg.data.troop));
-    return;
-}
-
-// assuming we'll never get a scout-name msg without knowing the troop
-function scoutName(msg) {
-    var troop_name = troops[msg.data.troop].name;
-    var scout_name = sanitize_name(msg.data.value);
-    console.log(sprintf("Learned scout named %s in troop %s with id %d",
-            scout_name, troop_name, msg.data.scout));
-    troops[msg.data.troop][msg.data.scout] = scout_name;
-    return;
-}
-
 
 var typeHandlers = {
     'available': handleAvailable, 'delete': deleteTroop,
@@ -216,8 +211,9 @@ var typeHandlers = {
 }
 
 function handleEvent(msg) {
-	var validMessage = msg.data.hasOwnProperty('troop') && msg.data.hasOwnProperty('value');
+	var validMessage = msg.data.hasOwnProperty('troop')
 	if (!validMessage) {
+        console.log("Got message without troop:", msg.data);
 		return;
 	}
 
